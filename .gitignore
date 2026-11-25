@@ -1,0 +1,25 @@
+# ---- Secrets / local environment ----
+.env
+.env.*
+!.env.example
+frontend/.env.local
+
+# ---- Java / Maven ----
+backend/target/
+*.class
+*.log
+hs_err_pid*
+
+# ---- Node / Vite ----
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+*.tsbuildinfo
+
+# ---- IDEs / OS ----
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db

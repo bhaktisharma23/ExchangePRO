@@ -1,0 +1,11 @@
+# Test profile. The real DataSource is replaced by an embedded PostgreSQL
+# instance (@AutoConfigureEmbeddedDatabase), so these values are never used
+# to connect anywhere; they only satisfy property resolution.
+spring:
+  datasource:
+    password: not-used-in-tests
+
+management:
+  endpoint:
+    health:
+      show-details: always

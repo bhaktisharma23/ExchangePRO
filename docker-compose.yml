@@ -1,0 +1,33 @@
+# EXCHANGE PRO - local infrastructure.
+# Phase 1: PostgreSQL only. Redis and Kafka are added in Phase 6, Prometheus/Grafana in Phase 9.
+#
+#   cp .env.example .env      # then set POSTGRES_PASSWORD / DB_PASSWORD
+#   docker compose up -d
+#
+# Docker Compose reads variables from the .env file next to this file automatically.
+name: exchangepro
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: exchangepro-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-exchangepro}
+      POSTGRES_USER: ${POSTGRES_USER:-exchangepro}
+      # No default: Compose fails with a clear message if the password is not set in .env.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (copy .env.example)}
+      TZ: UTC
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # $$ escapes $ for Compose so the variables are expanded inside the container.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:

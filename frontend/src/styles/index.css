@@ -1,0 +1,41 @@
+@import 'tailwindcss';
+
+/*
+ * EXCHANGE PRO design tokens. Tailwind v4 turns each --color-* into utilities
+ * (bg-surface, text-fg-muted, border-line, text-up, ...). Components must use
+ * these tokens rather than raw hex values so the palette stays consistent.
+ */
+@theme {
+  --color-canvas: #0b0e11;        /* app background */
+  --color-surface: #11151a;       /* main panels */
+  --color-surface-2: #151a21;     /* secondary panels */
+  --color-surface-3: #1b222b;     /* elevated panels, hover */
+  --color-line: #252d38;          /* borders */
+  --color-fg: #e8edf3;            /* primary text */
+  --color-fg-muted: #8994a3;      /* secondary text */
+  --color-up: #00c087;            /* positive / healthy */
+  --color-down: #f04452;          /* negative / failing */
+  --color-accent: #4c8dff;        /* interactive accent */
+  --color-warn: #e0a43a;          /* simulated-data warning label */
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', Consolas, monospace;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-canvas text-fg font-sans text-[13px] antialiased;
+    color-scheme: dark;
+  }
+
+  /* Prices and quantities must align in columns. */
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+}
