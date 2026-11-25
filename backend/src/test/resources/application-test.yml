@@ -1,6 +1,7 @@
 # Test profile. The real DataSource is replaced by an embedded PostgreSQL
-# instance (@AutoConfigureEmbeddedDatabase), so these values are never used
-# to connect anywhere; they only satisfy property resolution.
+# instance (@AutoConfigureEmbeddedDatabase), so the datasource values are
+# never used to connect anywhere; they only satisfy property resolution.
+# The JWT secret and admin password below are TEST-ONLY values.
 spring:
   datasource:
     password: not-used-in-tests
@@ -9,3 +10,11 @@ management:
   endpoint:
     health:
       show-details: always
+
+exchangepro:
+  security:
+    jwt:
+      secret: test-only-jwt-secret-0123456789abcdef0123456789
+  admin:
+    email: admin@exchangepro.test
+    password: AdminPass123

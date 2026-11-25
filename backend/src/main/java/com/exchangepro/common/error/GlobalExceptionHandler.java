@@ -1,17 +1,14 @@
 package com.exchangepro.common.error;
 
-import com.exchangepro.common.web.CorrelationIdFilter;
 import jakarta.validation.ConstraintViolationException;
-import java.net.URI;
-import java.time.Instant;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -74,6 +71,17 @@ public class GlobalExceptionHandler {
         return build(ErrorCode.METHOD_NOT_ALLOWED, "Method " + ex.getMethod() + " is not supported", null);
     }
 
+    /** Thrown by method-level security (e.g. {@code @PreAuthorize}) inside controllers/services. */
+    @ExceptionHandler(AccessDeniedException.class)
+    ResponseEntity<ProblemDetail> handleAccessDenied(AccessDeniedException ex) {
+        return build(ErrorCode.FORBIDDEN, "You do not have permission to perform this action", null);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    ResponseEntity<ProblemDetail> handleAuthentication(AuthenticationException ex) {
+        return build(ErrorCode.UNAUTHORIZED, "Authentication is required", null);
+    }
+
     @ExceptionHandler(Exception.class)
     ResponseEntity<ProblemDetail> handleUnexpected(Exception ex) {
         log.error("Unhandled exception", ex);
@@ -81,18 +89,10 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<ProblemDetail> build(ErrorCode code, String detail, List<FieldViolation> violations) {
-        HttpStatus status = code.status();
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
-        problem.setType(URI.create("about:blank"));
-        problem.setProperty("code", code.name());
-        problem.setProperty("timestamp", Instant.now().toString());
-        String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
-        if (correlationId != null) {
-            problem.setProperty("correlationId", correlationId);
-        }
+        ProblemDetail problem = ApiProblems.create(code, detail);
         if (violations != null) {
             problem.setProperty("errors", violations);
         }
-        return ResponseEntity.status(status).body(problem);
+        return ResponseEntity.status(code.status()).body(problem);
     }
 }

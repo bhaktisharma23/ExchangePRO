@@ -16,8 +16,8 @@ matched by a custom Java matching engine, and track their portfolio and profit/l
 | Phase | Scope | Status |
 |------:|-------|--------|
 | 1 | Project foundation & architecture | ✅ Complete |
-| 2 | Authentication, users, virtual accounts | ⏳ Next |
-| 3 | Instruments & market-data simulation | — |
+| 2 | Authentication, users, virtual accounts | ✅ Complete |
+| 3 | Instruments & market-data simulation | ⏳ Next |
 | 4 | Custom Java matching engine | — |
 | 5 | Trading APIs & double-entry ledger | — |
 | 6 | Kafka, Redis, transactional outbox | — |
@@ -26,7 +26,20 @@ matched by a custom Java matching engine, and track their portfolio and profit/l
 | 9 | Administration, security, production engineering | — |
 | 10 | Final integration, testing, documentation | — |
 
-## What works today (Phase 1)
+## What works today
+
+**Phase 2 — authentication and virtual accounts**
+
+- Registration, login, logout; passwords hashed with BCrypt (cost 12).
+- Short-lived JWT access tokens (15 min) + opaque refresh tokens in an `HttpOnly; Secure; SameSite=Strict` cookie,
+  rotated on every use, stored only as SHA-256 hashes, with reuse detection (a replayed token revokes the session).
+- Roles `USER` and `ADMIN`; deny-by-default security; optional bootstrap admin from environment variables.
+- Every new user gets a virtual trading account with **₹1,00,000.00**, created atomically with the user.
+- Users can only ever read their own profile and account (the user id comes from the token, never from the URL).
+- Frontend: login, registration, account/profile page, protected routes, silent session restore and refresh.
+
+**Phase 1 — foundation**
+
 
 - Spring Boot 3.5 backend (Java 21) with a modular-monolith package layout.
 - PostgreSQL 16 with Flyway migrations (`V1__baseline`).
@@ -112,11 +125,26 @@ The Vite dev server proxies `/api` and `/actuator` to the backend, so no CORS se
 | URL | Purpose |
 |-----|---------|
 | http://localhost:5173 | Frontend |
-| http://localhost:8080/api/v1/system/status | System status JSON |
+| http://localhost:8080/api/v1/system/status | System status JSON (public) |
 | http://localhost:8080/actuator/health | Health (incl. database) |
 | http://localhost:8080/actuator/health/liveness · `/readiness` | Container probes |
 | http://localhost:8080/swagger-ui.html | Interactive API docs |
 | http://localhost:8080/v3/api-docs | OpenAPI 3 spec |
+
+## API (Phase 2)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/v1/auth/register` | public | Create user + virtual account, sign in |
+| POST | `/api/v1/auth/login` | public | Sign in |
+| POST | `/api/v1/auth/refresh` | refresh cookie | Rotate refresh token, new access token |
+| POST | `/api/v1/auth/logout` | refresh cookie | Revoke session, clear cookie |
+| GET / PATCH | `/api/v1/users/me` | USER/ADMIN | Own profile / change display name |
+| GET | `/api/v1/accounts/me` | USER | Own virtual balances |
+| GET | `/api/v1/admin/users` | ADMIN | Paginated user list |
+| GET | `/api/v1/system/status` | public | System status |
+
+Full, interactive documentation: <http://localhost:8080/swagger-ui.html> (click **Authorize** and paste an access token).
 
 ## Environment variables
 
@@ -137,6 +165,11 @@ repository-root `.env` file. Docker Compose reads `.env` automatically.
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Backend | Comma-separated allowed browser origins |
 | `HEALTH_SHOW_DETAILS` | `never` | Backend | Actuator health details: `never` / `when-authorized` / `always` |
 | `LOG_LEVEL_APP` | `INFO` | Backend | Log level for `com.exchangepro.*` |
+| `JWT_SECRET` | _(required)_ | Backend | HMAC key for access tokens, ≥ 32 characters. Generate: `node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"` |
+| `JWT_ACCESS_TOKEN_TTL` | `PT15M` | Backend | Access-token lifetime (ISO-8601 duration) |
+| `REFRESH_TOKEN_TTL` | `P7D` | Backend | Refresh-token / session lifetime |
+| `REFRESH_COOKIE_SECURE` | `true` | Backend | `Secure` flag on the refresh cookie (browsers allow it on http://localhost) |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | _(empty)_ | Backend | Optional: creates this ADMIN user at startup if it does not exist |
 | `MARKET_DATA_MODE` | `SIMULATION` | Backend | `SIMULATION` only; `REAL` is refused at startup until a licensed provider exists |
 | `VITE_DEV_BACKEND_URL` | `http://localhost:8080` | Frontend (dev) | Target of the Vite dev proxy |
 | `VITE_API_BASE_URL` | _(empty = same origin)_ | Frontend | Absolute API base URL for production builds |
@@ -181,9 +214,15 @@ The development budget is ₹0, and market data is licensed. Therefore:
    No such provider is integrated; the backend **refuses to start** with `MARKET_DATA_MODE=REAL`.
 3. No scraping of NSE/BSE websites, no paid APIs, no redistribution of personal API access.
 
-## Known limitations (Phase 1)
+## Known limitations
 
-- No authentication yet — every endpoint is public. Spring Security + JWT arrives in Phase 2.
+- No login rate limiting / brute-force lockout yet (Redis-based rate limiting is Phase 6).
+- Expired/revoked refresh-token rows are not purged automatically yet (scheduled cleanup planned for Phase 9).
+- Disabling a user blocks login and refresh immediately, but an already-issued access token stays valid for up to
+  15 minutes (inherent to stateless JWTs).
+- There is no password-change or password-reset flow (no e-mail service on a ₹0 budget).
+- The opening ₹1,00,000 is not yet recorded as a ledger entry; the double-entry ledger arrives in Phase 5 and will
+  record opening balances.
 - `docker compose` could not be executed on the development machine used for Phase 1 (Docker not installed).
   The Compose file is standard, but you should run `docker compose up -d` yourself once to confirm it.
 - No GitHub Actions CI yet (Phase 9).

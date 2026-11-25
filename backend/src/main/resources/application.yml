@@ -88,3 +88,17 @@ exchangepro:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   market-data:
     mode: ${MARKET_DATA_MODE:SIMULATION}
+  security:
+    jwt:
+      secret: ${JWT_SECRET}                          # required, >= 32 characters, no default
+      issuer: exchange-pro
+      access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:PT15M}
+    refresh-token:
+      ttl: ${REFRESH_TOKEN_TTL:P7D}
+      cookie-name: ep_refresh
+      cookie-secure: ${REFRESH_COOKIE_SECURE:true}
+  account:
+    initial-balance: 100000.00                       # INR 1,00,000 virtual funds for every new account
+  admin:
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}

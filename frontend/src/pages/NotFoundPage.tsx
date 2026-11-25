@@ -6,7 +6,7 @@ export function NotFoundPage() {
       <p className="font-mono text-3xl text-fg-muted">404</p>
       <p className="mt-2">This page does not exist.</p>
       <Link to="/" className="mt-4 inline-block text-accent hover:underline">
-        Go to system status
+        Go to the home page
       </Link>
     </div>
   );

@@ -6,26 +6,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.exchangepro.config.ExchangeProProperties;
+import com.exchangepro.support.WebSliceSecurityConfig;
 import com.exchangepro.system.SystemStatusResponse.ComponentState;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Import;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** Web-layer slice test: only MVC infrastructure is started; the service is mocked. */
 @WebMvcTest(SystemStatusController.class)
+@Import(WebSliceSecurityConfig.class)
 class SystemStatusControllerTest {
 
-    /** Slice tests do not scan @ConfigurationProperties records, so bind them explicitly (needed by WebConfig/CORS). */
-    @TestConfiguration
-    @EnableConfigurationProperties(ExchangeProProperties.class)
-    static class PropertiesConfig {}
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
 
     @Autowired
     private MockMvc mockMvc;
@@ -56,6 +55,13 @@ class SystemStatusControllerTest {
 
         mockMvc.perform(get("/api/v1/system/status").header("Origin", "http://localhost:5173"))
                 .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
+    }
+
+    @Test
+    void statusEndpointIsPublic() throws Exception {
+        when(systemStatusService.currentStatus()).thenReturn(null);
+
+        mockMvc.perform(get("/api/v1/system/status")).andExpect(status().isOk());
     }
 
     @Test

@@ -16,3 +16,20 @@ export function formatDateTimeIst(iso: string | undefined): string {
 export function orDash(value: string | number | null | undefined): string {
   return value === null || value === undefined || value === '' ? '—' : String(value);
 }
+
+const inrFormatter = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+/**
+ * Formats a decimal string from the API in Indian grouping: "100000.0000" -> "₹1,00,000.00".
+ * The string is passed straight to Intl (which accepts exact decimal strings), so no binary floating-point
+ * conversion happens.
+ */
+export function formatInr(amount: string | undefined): string {
+  if (amount === undefined || amount === '' || Number.isNaN(Number(amount))) return '—';
+  return inrFormatter.format(amount as `${number}`);
+}

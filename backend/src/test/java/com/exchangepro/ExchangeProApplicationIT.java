@@ -64,7 +64,10 @@ class ExchangeProApplicationIT {
         assertThat(response.getHeaders().getFirst("X-Correlation-Id")).isNotBlank();
         Map<String, Object> body = response.getBody();
         Map<String, Object> database = (Map<String, Object>) body.get("database");
-        assertThat(database).containsEntry("state", "UP").containsEntry("schemaVersion", "1");
+        String latestMigration = jdbcTemplate.queryForObject(
+                "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1",
+                String.class);
+        assertThat(database).containsEntry("state", "UP").containsEntry("schemaVersion", latestMigration);
         assertThat((String) database.get("productVersion")).startsWith("PostgreSQL 16");
         assertThat((Map<String, Object>) body.get("marketData"))
                 .containsEntry("mode", "SIMULATION")
@@ -74,11 +77,12 @@ class ExchangeProApplicationIT {
 
     @Test
     @SuppressWarnings("unchecked")
-    void unknownEndpointReturnsProblemDetail() {
+    void unknownEndpointRequiresAuthenticationAndReturnsProblemDetail() {
+        // Deny-by-default: anonymous callers cannot even probe which endpoints exist.
         ResponseEntity<Map> response = http.getForEntity("/api/v1/does-not-exist", Map.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(response.getBody()).containsEntry("code", "RESOURCE_NOT_FOUND").containsKey("correlationId");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody()).containsEntry("code", "UNAUTHORIZED").containsKey("correlationId");
     }
 
     @Test

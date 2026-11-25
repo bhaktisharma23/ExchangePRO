@@ -69,7 +69,72 @@ feature modules, as if they were separate services, while still sharing one proc
 | Market-data safety | `marketdata/MarketDataMode`, `config/MarketDataModeGuard` | `SIMULATION` is labelled `SIMULATED DATA` and `realTime=false`. Starting in `REAL` mode is refused because no licensed provider exists. |
 | API docs | `config/OpenApiConfig` + Springdoc | Generates the OpenAPI spec from controllers, served with Swagger UI. |
 
-## 4. Frontend structure
+## 4. Authentication and authorization (Phase 2)
+
+### Token model
+
+```
+ Browser                                   Backend                              PostgreSQL
+ ───────                                   ───────                              ──────────
+ POST /auth/login {email,password} ───────► BCrypt verify ─────────────────────► users
+                                           issue JWT (15 min, HS256)
+                                           issue refresh token (random 256 bit) ─► refresh_tokens (SHA-256 hash)
+ ◄─── 200 {accessToken}  +  Set-Cookie: ep_refresh=…; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth
+
+ GET /accounts/me  Authorization: Bearer <JWT> ─► verify signature/expiry/issuer (no DB lookup)
+
+ (JWT expired → 401)
+ POST /auth/refresh  (cookie sent automatically) ─► lock token row (SELECT … FOR UPDATE)
+                                                    revoke it (ROTATED), issue successor in same family
+ ◄─── 200 {new accessToken} + new cookie
+```
+
+| Token | Format | Lifetime | Stored in browser | Stored on server | Revocable |
+|-------|--------|----------|-------------------|------------------|-----------|
+| Access | JWT (HS256): `sub`, `roles`, `iss`, `iat`, `exp`, `jti` | 15 min | JS memory (Zustand) only | nowhere | no (expires) |
+| Refresh | 32 random bytes, base64url | 7 days | `HttpOnly` cookie | SHA-256 hash | yes |
+
+**Why this split?** Access tokens are verified without a database lookup (fast, stateless), but cannot be revoked,
+so they are short-lived. The refresh token is revocable and lives where JavaScript cannot read it.
+
+**Rotation & reuse detection.** Each refresh revokes the presented token and issues a new one in the same
+*family*. An honest client never presents a revoked token; if a `ROTATED` token is presented, it was copied, so
+the whole family is revoked (`noRollbackFor` keeps that revocation committed even though the request fails).
+The row lock makes concurrent refreshes of the same token succeed at most once (tested). The frontend prevents
+false positives: one in-flight refresh per tab, and the Web Locks API serialises refreshes across tabs.
+
+### Defences
+
+| Threat | Defence |
+|--------|---------|
+| Password database leak | BCrypt cost 12, per-password salt; 72-byte limit enforced instead of silent truncation |
+| Refresh-token database leak | Only SHA-256 hashes stored |
+| XSS stealing tokens | Refresh token `HttpOnly`; access token never in localStorage |
+| CSRF | API uses `Authorization` header; refresh cookie is `SameSite=Strict` and path-scoped |
+| User enumeration | Identical error for unknown e-mail and wrong password; dummy BCrypt check equalises timing |
+| IDOR (reading others' data) | No user ids in URLs; `@CurrentUserId` comes from the verified token |
+| Privilege escalation | Registration always creates `USER`; unknown JSON fields rejected; admin URL rule + `@PreAuthorize` |
+| Duplicate registration race | `UNIQUE(email)` constraint; violation mapped to 409 (tested with 8 concurrent requests) |
+| Forged / expired / foreign tokens | Signature, algorithm, expiry and issuer validated |
+
+### Data model (V2)
+
+```
+users (id PK, email UNIQUE lower-case, password_hash, display_name, role CHECK IN (USER,ADMIN),
+       enabled, created_at, updated_at, version)
+  │1
+  │1
+accounts (id PK, user_id UNIQUE FK, currency='INR', available_balance NUMERIC(19,4) ≥ 0,
+          reserved_balance NUMERIC(19,4) ≥ 0, created_at, updated_at, version)
+
+users 1 ── * refresh_tokens (id PK, user_id FK, family_id, token_hash UNIQUE, issued_at, expires_at,
+                             revoked_at, revocation_reason, replaced_by, client_ip, user_agent, version)
+```
+
+Registration inserts `users` and `accounts` in one transaction (`AccountService.openAccount` uses
+`Propagation.MANDATORY`, so it cannot run outside the registration transaction).
+
+## 5. Frontend structure
 
 ```
 src/
@@ -96,7 +161,7 @@ cache, which handles caching, refetching and loading/error states. Zustand is re
 **Design tokens:** the palette is defined once in `styles/index.css` (`@theme`). Components use semantic utilities
 (`bg-surface`, `text-fg-muted`, `text-up`, `text-down`, `border-line`) rather than hex codes.
 
-## 5. Testing strategy
+## 6. Testing strategy
 
 | Level | Tool | Example |
 |-------|------|---------|
@@ -107,7 +172,7 @@ cache, which handles caching, refetching and loading/error states. Zustand is re
 
 Naming: `*Test` runs in `mvn test` (Surefire); `*IT` runs in `mvn verify` (Failsafe).
 
-## 6. Decisions log
+## 7. Decisions log
 
 | # | Decision | Reason |
 |---|----------|--------|
@@ -118,3 +183,7 @@ Naming: `*Test` runs in `mvn test` (Surefire); `*IT` runs in `mvn verify` (Fails
 | D5 | TypeScript 5.9 instead of 7.x | `typescript-eslint` does not yet support TypeScript 7. |
 | D6 | jsdom 29 instead of 31 | jsdom 30+ requires Node ≥ 24.15; the development machine has Node 24.11. |
 | D7 | Vite dev proxy for `/api` | Same-origin requests in development; mirrors a reverse proxy in production. CORS is still configured for direct access. |
+| D8 | Spring Security OAuth2 resource server (Nimbus) for JWTs instead of a separate JWT library | Uses Spring's maintained, standard JWT validation; no extra dependency. |
+| D9 | Opaque, hashed, rotating refresh tokens in an HttpOnly cookie | Revocable sessions; tokens unreadable by JavaScript and useless if the database leaks. |
+| D10 | Money as `NUMERIC(19,4)` / `BigDecimal`, serialized as JSON strings | Exact decimal arithmetic end to end; JavaScript numbers are binary floats. |
+| D11 | Display names allow Unicode letters **and combining marks** | Devanagari and other Indic vowel signs are marks (`\p{M}`); without them Hindi names were rejected (caught by a test). |
