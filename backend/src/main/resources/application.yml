@@ -21,6 +21,8 @@ spring:
       pool-name: exchangepro-pool
       maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
       connection-timeout: 5000
+      data-source-properties:
+        reWriteBatchedInserts: true   # PostgreSQL driver turns JDBC batches into multi-row INSERTs (fast backfill)
 
   jpa:
     open-in-view: false            # no lazy loading from controllers/views - transactions stay in services
@@ -88,6 +90,15 @@ exchangepro:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   market-data:
     mode: ${MARKET_DATA_MODE:SIMULATION}
+    simulation:
+      enabled: ${MARKET_SIMULATION_ENABLED:true}
+      tick-interval: ${MARKET_SIMULATION_TICK_INTERVAL:PT1S}
+      time-scale: ${MARKET_SIMULATION_TIME_SCALE:2}      # simulation speed multiplier
+      seed: ${MARKET_SIMULATION_SEED:20260101}
+      mean-reversion-per-year: 2.0
+      spread-basis-points: 5
+      backfill-days: 365
+      backfill-minutes: 1440
   security:
     jwt:
       secret: ${JWT_SECRET}                          # required, >= 32 characters, no default

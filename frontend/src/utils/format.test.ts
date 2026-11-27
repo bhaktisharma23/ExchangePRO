@@ -40,3 +40,16 @@ describe('formatInr', () => {
     expect(formatInr('abc')).toBe('—');
   });
 });
+
+describe('market formatting', () => {
+  it('formats prices, signed changes, percentages and volume', async () => {
+    const f = await import('./format');
+    expect(f.formatPrice('1400.0500')).toBe('1,400.05');
+    expect(f.formatSignedPrice('14.0000')).toBe('+14.00');
+    expect(f.formatSignedPrice('-3.1000')).toBe('-3.10');
+    expect(f.formatPercent('1.01')).toBe('+1.01%');
+    expect(f.formatPercent('-0.99')).toBe('-0.99%');
+    expect(f.formatVolume(12345678)).toBe('1,23,45,678');
+    expect(f.formatTimeIst('2026-01-15T09:15:03Z')).toBe('14:45:03 IST');
+  });
+});

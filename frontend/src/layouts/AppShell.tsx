@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Activity, LogOut } from 'lucide-react';
 import { MarketDataBadge } from '@/components/MarketDataBadge';
+import { InstrumentSearch } from '@/components/market/InstrumentSearch';
 import { useSystemStatus } from '@/hooks/useSystemStatus';
 import { useLogout } from '@/hooks/useAuthActions';
 import { useAuthStore } from '@/stores/authStore';
@@ -26,6 +27,7 @@ export function AppShell() {
           </NavLink>
         </nav>
         <div className="ml-auto flex items-center gap-3">
+          <HeaderSearch />
           <MarketDataBadge marketData={data?.marketData} />
           <SessionControls />
         </div>
@@ -42,13 +44,23 @@ export function AppShell() {
   );
 }
 
+function HeaderSearch() {
+  const status = useAuthStore((s) => s.status);
+  return status === 'authenticated' ? <InstrumentSearch /> : null;
+}
+
 function SessionNav() {
   const status = useAuthStore((s) => s.status);
   if (status !== 'authenticated') return null;
   return (
-    <NavLink to="/account" className={navLinkClass}>
-      Account
-    </NavLink>
+    <>
+      <NavLink to="/markets" className={navLinkClass}>
+        Markets
+      </NavLink>
+      <NavLink to="/account" className={navLinkClass}>
+        Account
+      </NavLink>
+    </>
   );
 }
 

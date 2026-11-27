@@ -17,8 +17,8 @@ matched by a custom Java matching engine, and track their portfolio and profit/l
 |------:|-------|--------|
 | 1 | Project foundation & architecture | ✅ Complete |
 | 2 | Authentication, users, virtual accounts | ✅ Complete |
-| 3 | Instruments & market-data simulation | ⏳ Next |
-| 4 | Custom Java matching engine | — |
+| 3 | Instruments & market-data simulation | ✅ Complete |
+| 4 | Custom Java matching engine | ⏳ Next |
 | 5 | Trading APIs & double-entry ledger | — |
 | 6 | Kafka, Redis, transactional outbox | — |
 | 7 | React trading interface | — |
@@ -27,6 +27,19 @@ matched by a custom Java matching engine, and track their portfolio and profit/l
 | 10 | Final integration, testing, documentation | — |
 
 ## What works today
+
+**Phase 3 — instruments and simulated market data**
+
+- 43 NSE-listed large-cap equities (symbol, name, sector, ₹0.05 tick, lot size 1) with search and details.
+- Deterministic price simulator (mean-reverting geometric Brownian motion, seeded per instrument) producing
+  last price, bid/ask, sizes, day open/high/low, previous close, change and volume — every price labelled
+  **SIMULATED DATA** with its timestamp.
+- One year of daily and 24 hours of 1-minute history generated on first start; candles for 1m, 5m, 15m, 1h and 1d
+  (IST-aligned), with the still-forming candle merged in live.
+- Live quotes over WebSocket/STOMP (`/topic/market/quotes`, one batch per second).
+- Frontend: Markets page (breadth, top gainers/losers/most active, live quote table) and instrument page with a
+  candlestick + volume chart (TradingView Lightweight Charts), timeframe selector and quote details.
+
 
 **Phase 2 — authentication and virtual accounts**
 
@@ -144,6 +157,18 @@ The Vite dev server proxies `/api` and `/actuator` to the backend, so no CORS se
 | GET | `/api/v1/admin/users` | ADMIN | Paginated user list |
 | GET | `/api/v1/system/status` | public | System status |
 
+### Phase 3 endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/v1/instruments?query=&sector=&page=&size=` | USER/ADMIN | Search by symbol or company name |
+| GET | `/api/v1/instruments/sectors` | USER/ADMIN | Sectors |
+| GET | `/api/v1/instruments/{symbol}` | USER/ADMIN | Instrument master data |
+| GET | `/api/v1/market/overview` | USER/ADMIN | All quotes, movers, breadth |
+| GET | `/api/v1/market/quotes/{symbol}` | USER/ADMIN | One quote |
+| GET | `/api/v1/market/candles/{symbol}?timeframe=1m\|5m\|15m\|1h\|1d&limit=1..1000` | USER/ADMIN | OHLCV candles |
+| WS | `/ws` → STOMP `SUBSCRIBE /topic/market/quotes` | public (read-only) | Live quote batches (`type: QUOTES, version: 1`) |
+
 Full, interactive documentation: <http://localhost:8080/swagger-ui.html> (click **Authorize** and paste an access token).
 
 ## Environment variables
@@ -170,6 +195,10 @@ repository-root `.env` file. Docker Compose reads `.env` automatically.
 | `REFRESH_TOKEN_TTL` | `P7D` | Backend | Refresh-token / session lifetime |
 | `REFRESH_COOKIE_SECURE` | `true` | Backend | `Secure` flag on the refresh cookie (browsers allow it on http://localhost) |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | _(empty)_ | Backend | Optional: creates this ADMIN user at startup if it does not exist |
+| `MARKET_SIMULATION_ENABLED` | `true` | Backend | Run the price simulator's ticker |
+| `MARKET_SIMULATION_TICK_INTERVAL` | `PT1S` | Backend | Time between price updates |
+| `MARKET_SIMULATION_TIME_SCALE` | `2` | Backend | Simulation speed (1 = realistic volatility per real second) |
+| `MARKET_SIMULATION_SEED` | `20260101` | Backend | Random seed; same seed ⇒ same price paths |
 | `MARKET_DATA_MODE` | `SIMULATION` | Backend | `SIMULATION` only; `REAL` is refused at startup until a licensed provider exists |
 | `VITE_DEV_BACKEND_URL` | `http://localhost:8080` | Frontend (dev) | Target of the Vite dev proxy |
 | `VITE_API_BASE_URL` | _(empty = same origin)_ | Frontend | Absolute API base URL for production builds |
@@ -215,6 +244,12 @@ The development budget is ₹0, and market data is licensed. Therefore:
 3. No scraping of NSE/BSE websites, no paid APIs, no redistribution of personal API access.
 
 ## Known limitations
+
+- The simulated market trades continuously (24×7, no NSE sessions or holidays); days are IST calendar days.
+- If the backend is stopped, the simulator resumes from the last stored price; the stopped period has no candles.
+- Simulated bid/ask are synthetic quotes, not an order book. The real order book arrives with the matching engine
+  (Phase 4) and trading (Phase 5).
+- Market data over WebSocket is public and read-only for now; authenticated per-user channels come in Phase 8.
 
 - No login rate limiting / brute-force lockout yet (Redis-based rate limiting is Phase 6).
 - Expired/revoked refresh-token rows are not purged automatically yet (scheduled cleanup planned for Phase 9).

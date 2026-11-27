@@ -12,6 +12,12 @@ management:
       show-details: always
 
 exchangepro:
+  market-data:
+    simulation:
+      enabled: false          # tests drive the simulator by calling tick() explicitly
+      seed: 42
+      backfill-days: 10
+      backfill-minutes: 180
   security:
     jwt:
       secret: test-only-jwt-secret-0123456789abcdef0123456789

@@ -46,6 +46,6 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
 /** Sends already-signed-in users away from the login/register pages. */
 export function GuestOnlyRoute({ children }: { children: ReactNode }) {
   const status = useAuthStore((s) => s.status);
-  if (status === 'authenticated') return <Navigate to="/account" replace />;
+  if (status === 'authenticated') return <Navigate to="/markets" replace />;
   return <>{children}</>;
 }

@@ -22,6 +22,8 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': { target: backendUrl, changeOrigin: true },
         '/actuator': { target: backendUrl, changeOrigin: true },
+        // WebSocket (STOMP) for live market data
+        '/ws': { target: backendUrl, ws: true, changeOrigin: true },
       },
     },
     test: {

@@ -38,7 +38,7 @@ export function RegisterPage() {
     register.mutate(
       { displayName: form.displayName.trim(), email: form.email.trim(), password: form.password },
       {
-        onSuccess: () => navigate('/account', { replace: true }),
+        onSuccess: () => navigate('/markets', { replace: true }),
         onError: (error) => setErrors(serverFieldErrors(error, FIELDS)),
       },
     );

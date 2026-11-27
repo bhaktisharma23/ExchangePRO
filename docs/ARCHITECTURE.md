@@ -134,7 +134,40 @@ users 1 ── * refresh_tokens (id PK, user_id FK, family_id, token_hash UNIQUE
 Registration inserts `users` and `accounts` in one transaction (`AccountService.openAccount` uses
 `Propagation.MANDATORY`, so it cannot run outside the registration transaction).
 
-## 5. Frontend structure
+## 5. Market data (Phase 3)
+
+```
+                         ┌───────────────────────── market-sim thread (single writer) ──────────────────────────┐
+ InstrumentService ───►  │ SimulatedMarketDataProvider.tick()  every 1 s                                         │
+ (43 instruments)        │   for each instrument: PricePath.step() → SimulatedInstrument (forming 1m/1d candle)  │
+                         │   ├─► LiveMarketState.publish(immutable snapshot)  ◄── HTTP threads read (no locks)   │
+                         │   ├─► CandleRepository: closed 1m candle INSERT, forming 1d candle UPSERT (per minute)│
+                         │   └─► MarketDataListener → MarketDataBroadcaster → STOMP /topic/market/quotes        │
+                         └───────────────────────────────────────────────────────────────────────────────────────┘
+ Browser: REST snapshot (/market/overview) → Zustand market store ← WebSocket batches (newer asOf wins)
+```
+
+**Price model.** Per instrument, the log price follows an Ornstein–Uhlenbeck process (mean-reverting geometric
+Brownian motion): `d ln P = θ(ln P_ref − ln P)dt − σ²/2 dt + σ√dt·Z`. σ = the instrument's annual volatility;
+θ keeps long runs near the seed reference price; `dt` = real seconds × time scale ÷ seconds per year. The model
+uses `double` internally (a statistical process), but every emitted price is a `BigDecimal` snapped to the
+₹0.05 tick grid. A `SplittableRandom` seeded with `seed ⊕ hash(symbol)` makes paths reproducible.
+
+**History.** On the first start, `HistoryGenerator` walks the same price path forward: 30-minute steps for a
+year of daily candles, then 15-second steps for 24 hours of 1-minute candles. Live simulation continues from the
+last generated price, so history and live data join seamlessly.
+
+**Candles.** Only `1m` and `1d` are stored (`candles` table, PK = instrument + timeframe + open time). 5m/15m/1h are
+computed by PostgreSQL with `date_bin(..., origin = midnight IST)`, so hourly bars align to IST hours. The API
+appends the in-memory forming candle so the last bar is always current.
+
+**Provider abstraction.** `MarketDataProvider` is the seam for a future real-data provider. `REAL` mode is refused
+at startup until a provider whose licence permits free multi-user display is integrated.
+
+**WebSocket security.** STOMP clients may only SUBSCRIBE to `/topic/market/**` and may never SEND. Without that
+rule a simple broker relays client messages to all subscribers, letting anyone broadcast fake prices (tested).
+
+## 6. Frontend structure
 
 ```
 src/
@@ -161,7 +194,7 @@ cache, which handles caching, refetching and loading/error states. Zustand is re
 **Design tokens:** the palette is defined once in `styles/index.css` (`@theme`). Components use semantic utilities
 (`bg-surface`, `text-fg-muted`, `text-up`, `text-down`, `border-line`) rather than hex codes.
 
-## 6. Testing strategy
+## 7. Testing strategy
 
 | Level | Tool | Example |
 |-------|------|---------|
@@ -172,7 +205,7 @@ cache, which handles caching, refetching and loading/error states. Zustand is re
 
 Naming: `*Test` runs in `mvn test` (Surefire); `*IT` runs in `mvn verify` (Failsafe).
 
-## 7. Decisions log
+## 8. Decisions log
 
 | # | Decision | Reason |
 |---|----------|--------|
@@ -186,4 +219,8 @@ Naming: `*Test` runs in `mvn test` (Surefire); `*IT` runs in `mvn verify` (Fails
 | D8 | Spring Security OAuth2 resource server (Nimbus) for JWTs instead of a separate JWT library | Uses Spring's maintained, standard JWT validation; no extra dependency. |
 | D9 | Opaque, hashed, rotating refresh tokens in an HttpOnly cookie | Revocable sessions; tokens unreadable by JavaScript and useless if the database leaks. |
 | D10 | Money as `NUMERIC(19,4)` / `BigDecimal`, serialized as JSON strings | Exact decimal arithmetic end to end; JavaScript numbers are binary floats. |
+| D12 | Dedicated single-thread executor for the simulator instead of `@Scheduled` | Single-writer guarantee; avoids sharing the WebSocket broker's task scheduler. |
+| D13 | Store 1m + 1d candles, aggregate 5m/15m/1h in SQL | One source of truth; no duplicated rollups to keep consistent. |
+| D14 | One WebSocket message per tick with all quotes | Constant message rate per client regardless of instrument count (~17 KB/s). |
+| D15 | Chart library loaded lazily | Keeps the initial bundle small (chart chunk ≈ 55 KB gzipped). |
 | D11 | Display names allow Unicode letters **and combining marks** | Devanagari and other Indic vowel signs are marks (`\p{M}`); without them Hindi names were rejected (caught by a test). |

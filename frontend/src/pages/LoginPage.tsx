@@ -13,7 +13,7 @@ type Field = 'email' | 'password';
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: string } | null)?.from ?? '/account';
+  const from = (location.state as { from?: string } | null)?.from ?? '/markets';
   const login = useLogin();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

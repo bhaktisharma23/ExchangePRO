@@ -10,7 +10,7 @@ function renderRegister() {
   return renderWithProviders(
     <Routes>
       <Route path="/register" element={<RegisterPage />} />
-      <Route path="/account" element={<p>Account page</p>} />
+      <Route path="/markets" element={<p>Markets page</p>} />
     </Routes>,
     { route: '/register' },
   );
@@ -25,13 +25,13 @@ async function fill(displayName: string, email: string, password: string) {
 }
 
 describe('RegisterPage', () => {
-  it('registers and navigates to the account page', async () => {
+  it('registers and navigates to the markets page', async () => {
     mockFetchRoutes({ 'POST /api/v1/auth/register': json(authResponse(), 201) });
     renderRegister();
 
     await fill('Asha Trader', 'asha@example.com', 'Password1');
 
-    expect(await screen.findByText('Account page')).toBeInTheDocument();
+    expect(await screen.findByText('Markets page')).toBeInTheDocument();
   });
 
   it('shows client-side validation errors without calling the server', async () => {

@@ -54,6 +54,10 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/error").permitAll()
+                        // WebSocket handshake. Phase 3 serves only public, read-only, simulated market data;
+                        // destinations are restricted in WebSocketConfig. Per-user channels with token
+                        // authentication arrive in Phase 8.
+                        .requestMatchers(HttpMethod.GET, "/ws", "/ws/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth -> oauth

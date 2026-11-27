@@ -11,7 +11,7 @@ function renderLogin() {
   return renderWithProviders(
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/account" element={<p>Account page</p>} />
+      <Route path="/markets" element={<p>Markets page</p>} />
     </Routes>,
     { route: '/login' },
   );
@@ -25,13 +25,13 @@ async function fillAndSubmit(email: string, password: string) {
 }
 
 describe('LoginPage', () => {
-  it('signs in, stores the session in memory and navigates to the account page', async () => {
+  it('signs in, stores the session in memory and navigates to the markets page', async () => {
     const fetchMock = mockFetchRoutes({ 'POST /api/v1/auth/login': json(authResponse()) });
     renderLogin();
 
     await fillAndSubmit('  asha@example.com ', 'Password1');
 
-    expect(await screen.findByText('Account page')).toBeInTheDocument();
+    expect(await screen.findByText('Markets page')).toBeInTheDocument();
     expect(useAuthStore.getState()).toMatchObject({ status: 'authenticated', accessToken: 'access-token-1' });
     expect(JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)).toEqual({
       email: 'asha@example.com',
